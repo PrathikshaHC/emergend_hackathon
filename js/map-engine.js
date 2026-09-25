@@ -7,6 +7,9 @@
 class MapboxEngine {
   constructor(containerId) {
     this.containerId = containerId;
+    // Mapbox Token placeholder (Optional if using Mapbox GL JS)
+    this.accessToken = window.MAPBOX_ACCESS_TOKEN || 'YOUR_MAPBOX_ACCESS_TOKEN_HERE';
+    
     this.map = null;
     this.ambulanceMarker = null;
     this.obstructionMarker = null;
@@ -38,7 +41,6 @@ class MapboxEngine {
   }
 
   initGoogleMap() {
-    // Clear container content if needed
     const container = document.getElementById(this.containerId);
     if (!container) return;
     container.innerHTML = '';
