@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RescuRoute AI - Closed-Loop Emergency Obstruction Response Agent</title>
+  
+  <!-- Google Fonts & Leaflet CSS for Google Maps Tiles -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Design System Styling -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div id="app-container">
+
+    <!-- Pure 3D WebGL Background Image Layer -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Google Maps Bengaluru Layer -->
+    <div id="leaflet-map-container"></div>
+
+    <!-- Top Navbar & 3-Dashboard Switcher -->
+    <header class="top-navbar">
+      <div class="brand-title">
+        <span>🚑 RescuRoute AI</span>
+      </div>
+
+      <div class="view-tabs">
+        <button id="tab-ambulance" class="view-tab-btn active">
+          <span>🚑 Ambulance View</span>
+        </button>
+        <button id="tab-responder" class="view-tab-btn">
+          <span>🚜 Responder View</span>
+        </button>
+        <button id="tab-admin" class="view-tab-btn">
+          <span>🚔 Command Admin</span>
+        </button>
+      </div>
+
+      <button id="btn-toggle-map" class="map-mode-toggle">
+        <span id="map-toggle-text">🗺️ Switch to 3D Canvas</span>
+      </button>
+
+      <button id="btn-toggle-voice" class="voice-toggle-btn">
+        <span id="voice-toggle-text">🔊 ElevenLabs Voice Alert: ON</span>
+      </button>
+    </header>
+
+    <!-- ===================================================================
+         VIEW 1: AMBULANCE DASHBOARD
+         =================================================================== -->
+    <main id="view-ambulance" class="main-ui-overlay dashboard-view active-view">
+      
+      <!-- LEFT PANEL: Dispatch Setup & Live Telemetry -->
+      <aside class="panel-container">
+        <div class="panel-card">
+          <div class="card-header">
+            <div class="card-title">📍 Dispatch Vector (Bengaluru)</div>
+            <span class="status-badge badge-clear" id="amb-route-badge">CLEAR</span>
+          </div>
+
+          <div class="route-selector-box">
+            <div class="route-step">
+              <div class="step-dot dot-from"></div>
+              <div class="step-info" style="width: 100%;">
+                <span>FROM (ORIGIN)</span>
+                <select id="select-from" class="location-input">
+                  <option value="Majestic">Majestic Station 1 (Bengaluru)</option>
+                  <option value="Indiranagar">Indiranagar Sector 3</option>
+                  <option value="Whitefield">Whitefield Tech Hub</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="route-step">
+              <div class="step-dot dot-to"></div>
+              <div class="step-info" style="width: 100%;">
+                <span>TO (DESTINATION)</span>
+                <select id="select-to" class="location-input">
+                  <option value="Hospital">Manipal General Hospital (Bengaluru)</option>
+                  <option value="StJohns">St. John's Emergency Care</option>
+                  <option value="Fortis">Fortis Medical Center</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-header">
+            <div class="card-title">⚡ Ambulance Telemetry</div>
+            <span class="status-badge badge-ai">GOOGLE MAPS ACTIVE</span>
+          </div>
+
+          <div class="telemetry-grid">
+            <div class="telemetry-item">
+              <div class="telemetry-label">Speed</div>
+              <div class="telemetry-val" id="amb-speed">64 km/h</div>
+            </div>
+            <div class="telemetry-item">
+              <div class="telemetry-label">ETA to Hospital</div>
+              <div class="telemetry-val" id="amb-eta">3m 20s</div>
+            </div>
+            <div class="telemetry-item">
+              <div class="telemetry-label">Distance</div>
+              <div class="telemetry-val" id="amb-dist">4.2 km</div>
+            </div>
+            <div class="telemetry-item">
+              <div class="telemetry-label">SLA Countdown</div>
+              <div class="telemetry-val" id="amb-sla">90s</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER PANEL: Obstruction Alert HUD & Control Toolbar -->
+      <section class="center-viewport-controls">
+        <div class="emergency-alert-card" id="amb-alert-card" style="display: none;">
+          <div class="alert-header">
+            <div class="alert-title">
+              <span>🚨 Emergency Request</span>
+            </div>
+            <span class="status-badge badge-danger">OBSTRUCTION DETECTED</span>
+          </div>
+
+          <div class="alert-body-grid">
+            <div class="alert-field">
+              <label>Location</label>
+              <span>Junction 4 (MG Road, Bengaluru)</span>
+            </div>
+            <div class="alert-field">
+              <label>Problem</label>
+              <span id="amb-prob-type">Broken-down vehicle</span>
+            </div>
+            <div class="alert-field">
+              <label>Ambulance ETA</label>
+              <span style="color: var(--alert-red);">3 min</span>
+            </div>
+            <div class="alert-field">
+              <label>Assigned Responder</label>
+              <span style="color: var(--warning-amber);" id="amb-assigned-resp">Tow Unit #07</span>
+            </div>
+          </div>
+
+          <div class="closed-loop-agent-box">
+            <div class="agent-header">
+              <span>🤖 CLOSED-LOOP AI AGENT</span>
+              <span id="amb-agent-tag" style="font-weight: 900;">CLEARANCE SENT (n8n)</span>
+            </div>
+            <div class="agent-status-text" id="amb-agent-desc">
+              Clearance request dispatched via n8n. Verifying responder status...
+            </div>
+            <div class="sla-progress-bar">
+              <div class="sla-fill" id="amb-sla-fill"></div>
+            </div>
+          </div>
+
+          <div class="alert-actions">
+            <button class="btn-primary btn-danger" id="amb-btn-accept-reroute">
+              <span>🔄 Accept AI Reroute (Avenue 6)</span>
+            </button>
+          </div>
+        </div>
+
+        <div></div>
+
+        <div class="sim-control-bar">
+          <button class="sim-btn btn-cyan" id="btn-start-sim">
+            <span>▶ Start Ambulance Trip</span>
+          </button>
+          <button class="sim-btn btn-warning" id="btn-trigger-obs">
+            <span>🚨 Trigger Junction 4 Incident</span>
+          </button>
+          <button class="sim-btn" id="btn-reset-sim" style="background: rgba(0,0,0,0.1);">
+            <span>🔄 Reset</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL: Live AI Status & Voice Log -->
+      <aside class="panel-container">
+        <div class="panel-card">
+          <div class="card-header">
+            <div class="card-title">🔊 ElevenLabs Emergency Voice</div>
+            <span class="status-badge badge-ai">ACTIVE</span>
+          </div>
+          <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600; line-height: 1.4;">
+            AI synthesizes real-time spoken guidance for paramedics when obstructions or reroutes occur.
+          </div>
+        </div>
+
+        <div class="panel-card" style="flex: 1;">
+          <div class="card-header">
+            <div class="card-title">📋 Ambulance HUD Log</div>
+            <span class="status-badge badge-clear">LIVE</span>
+          </div>
+          <div class="log-feed" id="amb-log-feed"></div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ===================================================================
+         VIEW 2: RESPONDER DASHBOARD (Traffic Police / Tow Unit)
+         =================================================================== -->
+    <main id="view-responder" class="main-ui-overlay dashboard-view">
+      
+      <!-- LEFT PANEL: Responder Profile -->
+      <aside class="panel-container">
+        <div class="panel-card">
+          <div class="card-header">
+            <div class="card-title">🚜 Responder Profile</div>
+            <span class="status-badge badge-clear">ONLINE</span>
+          </div>
+          <div class="responder-action-box">
+            <strong style="font-size: 1.05rem; display: block; margin-bottom: 4px;">Tow Unit #07 (Heavy Recovery)</strong>
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 8px;">Authorized Traffic Clearance Asset</span>
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--primary-cyan);">Proximity: 0.8 km to Junction 4 MG Road</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER PANEL: Responder Task Action Card & 5-Stage Lifecycle -->
+      <section class="center-viewport-controls">
+        <div class="emergency-alert-card" id="resp-task-card" style="width: 100%; max-width: 540px;">
+          <div class="alert-header">
+            <div class="alert-title">
+              <span>🚨 Clearance Request</span>
+            </div>
+            <span class="status-badge badge-warning" id="resp-task-badge">PENDING YOUR ACTION</span>
+          </div>
+
+          <div class="alert-body-grid">
+            <div class="alert-field">
+              <label>Location</label>
+              <span>Junction 4 (MG Road, Bengaluru)</span>
+            </div>
+            <div class="alert-field">
+              <label>Problem Type</label>
+              <span>Broken-down vehicle</span>
+            </div>
+            <div class="alert-field">
+              <label>Ambulance ETA to Site</label>
+              <span style="color: var(--alert-red);">3 min</span>
+            </div>
+            <div class="alert-field">
+              <label>Clearance Priority</label>
+              <span style="color: var(--alert-red); font-weight: 900;">CRITICAL / CODE RED</span>
+            </div>
+          </div>
+
+          <!-- Accept / Reject Action Buttons -->
+          <div class="alert-actions" id="resp-accept-reject-box" style="margin-bottom: 16px;">
+            <button class="btn-primary btn-success" id="resp-btn-accept">
+              <span>✅ Accept Request</span>
+            </button>
+            <button class="btn-primary btn-danger" id="resp-btn-reject">
+              <span>❌ Reject Task (Trigger Escalation)</span>
+            </button>
+          </div>
+
+          <!-- 5-Stage Lifecycle Progress Timeline -->
+          <div style="font-weight: 800; font-size: 0.82rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">
+            Clearance Progress Lifecycle:
+          </div>
+          <div class="lifecycle-timeline">
+            <div class="stage-step" id="stage-1">
+              <div class="stage-circle">1</div>
+              <div class="stage-label">Accepted</div>
+            </div>
+            <div class="stage-step" id="stage-2">
+              <div class="stage-circle">2</div>
+              <div class="stage-label">On Way</div>
+            </div>
+            <div class="stage-step" id="stage-3">
+              <div class="stage-circle">3</div>
+              <div class="stage-label">Reached</div>
+            </div>
+            <div class="stage-step" id="stage-4">
+              <div class="stage-circle">4</div>
+              <div class="stage-label">Clearing</div>
+            </div>
+            <div class="stage-step" id="stage-5">
+              <div class="stage-circle">5</div>
+              <div class="stage-label">Cleared</div>
+            </div>
+          </div>
+
+          <!-- Lifecycle Progression Control Button -->
+          <div class="alert-actions" style="margin-top: 16px;">
+            <button class="btn-primary btn-cyan" id="resp-btn-next-stage" disabled>
+              <span>Advance Status $\rightarrow$</span>
+            </button>
+          </div>
+        </div>
+
+        <div></div>
+      </section>
+
+      <!-- RIGHT PANEL: Responder Feed -->
+      <aside class="panel-container">
+        <div class="panel-card" style="flex: 1;">
+          <div class="card-header">
+            <div class="card-title">📋 Dispatch Notification Log</div>
+            <span class="status-badge badge-ai">n8n CONNECTED</span>
+          </div>
+          <div class="log-feed" id="resp-log-feed"></div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ===================================================================
+         VIEW 3: COMMAND / ADMIN DASHBOARD
+         =================================================================== -->
+    <main id="view-admin" class="main-ui-overlay dashboard-view">
+      
+      <!-- LEFT PANEL: Responder Availability Grid -->
+      <aside class="panel-container">
+        <div class="panel-card">
+          <div class="card-header">
+            <div class="card-title">🚜 City Responder Matrix</div>
+            <span class="status-badge badge-clear">3 UNITS ACTIVE</span>
+          </div>
+
+          <div class="responder-item">
+            <div class="responder-info">
+              <strong>Tow Unit #07 (Heavy Tow)</strong>
+              <span>Junction 4 MG Road Sector</span>
+            </div>
+            <span class="status-badge badge-warning" id="admin-tow07-status">STANDBY</span>
+          </div>
+
+          <div class="responder-item">
+            <div class="responder-info">
+              <strong>Traffic Police Unit #04</strong>
+              <span>MG Road Patrol</span>
+            </div>
+            <span class="status-badge badge-clear" id="admin-pol04-status">AVAILABLE</span>
+          </div>
+
+          <div class="responder-item">
+            <div class="responder-info">
+              <strong>Municipal Heavy Recovery #02</strong>
+              <span>Secondary Fallback Asset</span>
+            </div>
+            <span class="status-badge badge-clear" id="admin-rec02-status">AVAILABLE</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER PANEL: Closed-Loop Overview & SLA Monitor -->
+      <section class="center-viewport-controls">
+        <div class="panel-card" style="width: 100%; max-width: 560px; pointer-events: auto;">
+          <div class="card-header">
+            <div class="card-title">🛡️ Closed-Loop SLA Oversight Engine</div>
+            <span class="status-badge badge-ai" id="admin-loop-badge">IDLE</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+            <div class="telemetry-item">
+              <div class="telemetry-label">Closed-Loop State</div>
+              <div class="telemetry-val" id="admin-loop-state" style="font-size: 1.05rem;">IDLE</div>
+            </div>
+            <div class="telemetry-item">
+              <div class="telemetry-label">SLA Window</div>
+              <div class="telemetry-val" id="admin-sla-val">90s</div>
+            </div>
+          </div>
+
+          <div class="closed-loop-agent-box">
+            <div class="agent-header">
+              <span>AUTOMATED ESCALATION & REROUTE LOGIC</span>
+            </div>
+            <div class="agent-status-text" id="admin-agent-summary">
+              System monitors responder acceptance & clearance verification. Triggers instant multi-tier fallback if unverified.
+            </div>
+          </div>
+        </div>
+
+        <div></div>
+      </section>
+
+      <!-- RIGHT PANEL: Full n8n Workflow Audit Feed -->
+      <aside class="panel-container">
+        <div class="panel-card" style="flex: 1;">
+          <div class="card-header">
+            <div class="card-title">📋 n8n Workflow Incident Feed</div>
+            <span class="status-badge badge-ai">AUDIT LOG</span>
+          </div>
+          <div class="log-feed" id="admin-log-feed"></div>
+        </div>
+      </aside>
+    </main>
+
+  </div>
+
+  <!-- CDN Dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Application Modules -->
+  <script src="js/three-scene.js"></script>
+  <script src="js/map-engine.js"></script>
+  <script src="js/simulation-engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
